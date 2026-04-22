@@ -1,32 +1,28 @@
 name: Build
 
 on:
-  push:
+  workflow_dispatch:
 
 jobs:
-  test:
+  build:
     name: Build
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        python-version: ["3.11"]
-        os: [windows-latest]
-      fail-fast: false
-    env:
-      OS: ${{ matrix.os }}
-      PYTHON_VERSION: ${{ matrix.python-version }}
-      EXE_NAME: OnmyojiDesktopAssistant
-
+    runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Python environment
-        uses: ./.github/actions/setup-python
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install poetry
+        run: pipx install poetry
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
+          cache: 'poetry'
       
       - name: Run Pytest
         run: |
+          poetry install
           cd tests
           poetry run pytest -s
       
@@ -39,5 +35,5 @@ jobs:
       - name: Upload build
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.EXE_NAME }}
+          name: OnmyojiDesktopAssistant
           path: output/
