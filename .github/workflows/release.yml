@@ -31,14 +31,21 @@ jobs:
       - name: Build
         run: |
             poetry run pyinstaller main.spec --distpath .
+
+      - name: Package
+        run: |
             mkdir output\resource
             xcopy src\resource output\resource /s /e /v /q /y
+            mkdir output\resource_ja
+            xcopy src\resource_ja output\resource_ja /s /e /v /q /y
+            $version = "${{ github.ref_name }}"
+            Compress-Archive -Path output\* -DestinationPath "OnmyojiDesktopAssistant-$version.zip"
       
       - name: Upload build
         uses: actions/upload-artifact@v7
         with:
           name: OnmyojiDesktopAssistant
-          path: output/
+          path: OnmyojiDesktopAssistant-*.zip
 
   release:
     name: Release
