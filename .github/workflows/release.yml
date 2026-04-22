@@ -62,7 +62,7 @@ jobs:
           Get-ChildItem -Recurse
 
       - name: Create Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v1
         with:
           name: Release ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
