@@ -1,113 +1,32 @@
-import json
 import os
 import time
-from ctypes import *
 from typing import Literal
 
-from .application import APP_PATH, CACHE_DIR_PATH
+# --- 强行引导 PyInstaller 捞取 chardet 子模块 ---
+try:
+    import chardet
+    import chardet.pipeline
+    import chardet.pipeline.orchestrator
+except ImportError:
+    pass
+# ---------------------------------------------
+
+import numpy as np
+from PIL import Image
+
 from .assets import AssetOcr
 from .log import logger
+from .paddle_model import PaddleModel
 from .point import Point, Rectangle
 from .screenshot import ScreenShot
 from .window import window_manager
 
-
-class PaddleOCRParameter(Structure):
-    _fields_ = [
-        ("use_gpu", c_bool),
-        ("gpu_id", c_int),
-        ("gpu_mem", c_int),
-        ("cpu_math_library_num_threads", c_int),
-        ("enable_mkldnn", c_bool),
-        ("det", c_bool),
-        ("rec", c_bool),
-        ("cls", c_bool),
-        ("max_side_len", c_int),
-        ("det_db_thresh", c_float),
-        ("det_db_box_thresh", c_float),
-        ("det_db_unclip_ratio", c_float),
-        ("use_dilation", c_bool),
-        ("det_db_score_mode", c_bool),
-        ("visualize", c_bool),
-        ("use_angle_cls", c_bool),
-        ("cls_thresh", c_float),
-        ("cls_batch_num", c_int),
-        ("rec_batch_num", c_int),
-        ("rec_img_h", c_int),
-        ("rec_img_w", c_int),
-        ("show_img_vis", c_bool),
-        ("use_tensorrt", c_bool),
-    ]
-
-    def __init__(self):
-        self.use_gpu = False
-        self.gpu_id = 0
-        self.gpu_mem = 4000
-        self.cpu_math_library_num_threads = 10
-        self.enable_mkldnn = True
-        self.det = True
-        self.rec = True
-        self.cls = False
-        self.max_side_len = 960
-        self.det_db_thresh = 0.3
-        self.det_db_box_thresh = 0.618
-        self.det_db_unclip_ratio = 1.6
-        self.use_dilation = False
-        self.det_db_score_mode = True
-        self.visualize = False
-        self.use_angle_cls = False
-        self.cls_thresh = 0.9
-        self.cls_batch_num = 1
-        self.rec_batch_num = 6
-        self.rec_img_h = 48
-        self.rec_img_w = 320
-        self.show_img_vis = False
-        self.use_tensorrt = False
-
-
-def PaddleOCRParameter2dict(param):
-    return {
-        "use_gpu": param.use_gpu,
-        "gpu_id": param.gpu_id,
-        "gpu_mem": param.gpu_mem,
-        "cpu_math_library_num_threads": param.cpu_math_library_num_threads,
-        "enable_mkldnn": param.enable_mkldnn,
-        "det": param.det,
-        "rec": param.rec,
-        "cls": param.cls,
-        "max_side_len": param.max_side_len,
-        "det_db_thresh": param.det_db_thresh,
-        "det_db_box_thresh": param.det_db_box_thresh,
-        "det_db_unclip_ratio": param.det_db_unclip_ratio,
-        "use_dilation": param.use_dilation,
-        "det_db_score_mode": param.det_db_score_mode,
-        "visualize": param.visualize,
-        "use_angle_cls": param.use_angle_cls,
-        "cls_thresh": param.cls_thresh,
-        "cls_batch_num": param.cls_batch_num,
-        "rec_batch_num": param.rec_batch_num,
-        "rec_img_h": param.rec_img_h,
-        "rec_img_w": param.rec_img_w,
-        "show_img_vis": param.show_img_vis,
-        "use_tensorrt": param.use_tensorrt,
-    }
+os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
 
 
 def check_ocr_folder():
-    """检查当前目录下是否存在名为`ocr`的文件夹"""
-    current_dir = os.getcwd()
-    ocr_folder = os.path.join(current_dir, "ocr")
-
-    if not os.path.exists(ocr_folder):
-        return False
-
-    dll_folder = os.path.join(ocr_folder, "dll")
-    model_folder = os.path.join(ocr_folder, "model")
-
-    if not (os.path.exists(dll_folder) and os.path.exists(model_folder)):
-        return False
-
-    return True
+    """检查OCR资源是否存在，不存在则自动下载"""
+    return PaddleModel.auto_download(3)
 
 
 class OCRManager:
@@ -122,44 +41,21 @@ class OCRManager:
         if self._init:
             return
 
-        ocr_path = os.path.join(str(APP_PATH), "ocr")
-        if os.path.exists(ocr_path):
-            logger.info(f"ocr_path:{ocr_path}")
-        else:
-            raise FileNotFoundError(f"OCR文件夹不存在: {ocr_path}")
-
-        dll_path = os.path.join(ocr_path, "dll")
-        model_path = os.path.join(ocr_path, "model")
-        # 添加dll至环境变量，方便相对路径读取，2个操作缺一不可
-        os.environ["path"] += f";{dll_path}"
-        os.add_dll_directory(dll_path)
-
-        # https://gitee.com/raoyutian/PaddleOCRSharp/tree/dev/PaddleOCRDemo/python
         try:
-            paddleOCR = cdll.LoadLibrary("PaddleOCR.dll")
-            encode = "gbk"
-            cls_infer = os.path.join(model_path, "ch_ppocr_mobile_v2.0_cls_infer")
-            rec_infer = os.path.join(model_path, "ch_PP-OCRv3_rec_infer")
-            det_infer = os.path.join(model_path, "ch_PP-OCRv3_det_infer")
-            ocrkeys = os.path.join(model_path, "ppocr_keys.txt")
+            from paddleocr import PaddleOCR
 
-            parameter = PaddleOCRParameter()
-            p_cls_infer = cls_infer.encode(encode)
-            p_rec_infer = rec_infer.encode(encode)
-            p_det_infer = det_infer.encode(encode)
-            p_ocrkeys = ocrkeys.encode(encode)
-
-            parameterjson = json.dumps(parameter, default=PaddleOCRParameter2dict)
-            paddleOCR.Initializejson(
-                p_det_infer,
-                p_cls_infer,
-                p_rec_infer,
-                p_ocrkeys,
-                parameterjson.encode(encode),
+            logger.info("开始初始化 PaddleOCR v3...")
+            # TODO 本地模型路径
+            self.paddleocr = PaddleOCR(
+                text_detection_model_name="PP-OCRv3_mobile_det",
+                text_recognition_model_name="PP-OCRv3_mobile_rec",
+                use_doc_orientation_classify=False,
+                use_doc_unwarping=False,
+                use_textline_orientation=False,
+                det_db_thresh=0.3,
+                det_db_box_thresh=0.5,
+                det_db_unclip_ratio=1.5,
             )
-            paddleOCR.Detect.restype = c_wchar_p
-
-            self.paddleocr = paddleOCR
             self._init = True
             logger.info("OCR初始化成功")
 
@@ -172,29 +68,67 @@ class OCRManager:
         """检查OCR是否已初始化"""
         return self._init
 
-    def detect(self, image_path: str) -> str:
+    def detect(self, image: Image.Image) -> list:
         """执行OCR检测
 
         Args:
-            image_path: 图像路径
+            image: PIL Image 对象
 
         Returns:
-            str: OCR检测结果（JSON字符串）
+            list: OCR检测结果
         """
         if not self._init:
             if not self.init():
-                return ""
+                return []
 
         try:
-            image = image_path.encode("gbk")
-            return self.paddleocr.Detect(image)
+            t1 = time.perf_counter()
+
+            img_np = np.array(image)
+            t2 = time.perf_counter()
+            logger.debug(f"图像转换耗时: {(t2 - t1) * 1000:.2f} ms")
+
+            result = self.paddleocr.predict(input=img_np)
+            t3 = time.perf_counter()
+            logger.debug(f"OCR预测耗时: {(t3 - t2) * 1000:.2f} ms")
+            logger.debug(f"OCR总耗时: {(t3 - t1) * 1000:.2f} ms")
+
+            return result
         except Exception as e:
             logger.error(f"OCR检测失败: {e}")
-            return ""
+            return []
 
 
 # 全局OCR管理器实例
 ocr_manager = OCRManager()
+
+
+def get_ocrdata_from_result(raw_result):
+    """从新版 OCR 结果中提取数据
+
+    Args:
+        raw_result: 新版 PaddleOCR v5 的结果
+
+    Returns:
+        list: 格式化后的结果列表
+    """
+    rec_texts = raw_result["rec_texts"]
+    rec_scores = raw_result["rec_scores"]
+    rec_boxes = raw_result["rec_boxes"]
+    result_list = []
+    for text, score, box in zip(rec_texts, rec_scores, rec_boxes):
+        item = {
+            "Text": text,
+            "Score": score,
+            "BoxPoints": [
+                {"X": int(box[0]), "Y": int(box[1])},
+                {"X": int(box[2]), "Y": int(box[1])},
+                {"X": int(box[2]), "Y": int(box[3])},
+                {"X": int(box[0]), "Y": int(box[3])},
+            ],
+        }
+        result_list.append(item)
+    return result_list
 
 
 class OcrData:
@@ -243,22 +177,26 @@ class OcrDetector:
             list[OcrData]: OCR检测结果列表
         """
         start_time = time.time()
-        file = os.path.join(str(CACHE_DIR_PATH), "ocr_screenshot.png")
-        ScreenShot(rect=self.region).save(file)
+        screenshot = ScreenShot(rect=self.region)
+        image = screenshot.get_image()
 
-        ocr_result = ocr_manager.detect(file)
+        ocr_result = ocr_manager.detect(image)
         data_result: list[OcrData] = []
         try:
-            ocr_result = json.loads(ocr_result)
-            if not isinstance(ocr_result, list):
-                logger.error(f"OCR result is not a list: {ocr_result}")
+            # 处理新版 OCR 结果
+            formatted_result = []
+            for res in ocr_result:
+                formatted_result.extend(get_ocrdata_from_result(res))
+
+            if not isinstance(formatted_result, list):
+                logger.error(f"OCR result is not a list: {formatted_result}")
                 return data_result
         except Exception as e:
             logger.error(f"Failed to parse OCR result: {str(e)}")
             logger.error(f"Raw OCR result: {ocr_result}")
             return data_result
 
-        for item in ocr_result:
+        for item in formatted_result:
             # 过滤无效数据
             if not isinstance(item, dict):
                 logger.warning(f"OCR item is not a dict: {item}")
@@ -268,12 +206,12 @@ class OcrDetector:
             if item.get("Text", "") == "":
                 continue
             ocr_data = OcrData(item)
-            logger.info(f"ocr result: {ocr_data}")
+            logger.info(f"result: {ocr_data}")
             data_result.append(ocr_data)
 
         end_time = time.time()
         elapsed_ms = (end_time - start_time) * 1000
-        logger.debug(f"OCR detection took {elapsed_ms:.2f} ms")
+        logger.info(f"OCR detection took {elapsed_ms:.2f} ms")
         return data_result
 
 
