@@ -12,28 +12,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Install poetry
-        run: pipx install poetry
-
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-          cache: 'poetry'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
       
       - name: Run Pytest
         run: |
-          poetry install
+          uv sync
           cd tests
-          poetry run pytest -s
+          uv run pytest -s
 
       - name: Build
-        if: github.event_name == 'workflow_dispatch'
         run: |
-            poetry run pyinstaller main.spec --clean --noconfirm --distpath .
+            uv run pyinstaller main.spec --clean --noconfirm --distpath .
 
       - name: Package
-        if: github.event_name == 'workflow_dispatch'
         run: |
             mkdir output\resource
             xcopy src\resource output\resource /s /e /v /q /y
@@ -47,4 +46,4 @@ jobs:
         with:
           name: OnmyojiDesktopAssistant
           path: OnmyojiDesktopAssistant-debug.zip
-          retention-days: 7
+          retention-days: 1
