@@ -27,7 +27,9 @@ jobs:
         shell: bash
 
       - name: Run Pytest
-        run: uv run pytest tests -s
+        run: |
+          dir
+          uv run pytest tests -s
 
       - name: Build
         run: uv run pyinstaller main.spec --clean --noconfirm --distpath .
