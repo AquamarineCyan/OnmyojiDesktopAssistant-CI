@@ -20,8 +20,7 @@ jobs:
       - name: Run Pytest
         run: |
           uv sync
-          cd tests
-          uv run pytest -s
+          uv run pytest tests -s
 
       - name: Build
         run: |
