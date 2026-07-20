@@ -1,2 +1,2 @@
-VERSION: str = "2.1.0"
+VERSION: str = "2.1.2"
 """版本号"""

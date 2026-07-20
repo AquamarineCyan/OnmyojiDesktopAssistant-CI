@@ -20,9 +20,12 @@ from qfluentwidgets import (
     RadioButton,
     SpinBox,
     TextBrowser,
+    ToolTipFilter,
+    ToolTipPosition,
 )
 
-from ..package.types import GameFunction, QiLing, Yingjie
+from ..package.types import GameFunction, MiWenMode, QiLing, Yingjie
+from ..utils.config import config
 
 GroupHeaderCardWidgetHeaderViewHeight: int = 36
 
@@ -38,28 +41,7 @@ class StackedWidgetIndex(Enum):
     YINGJIESHILIAN = 5
     TANSUO = 6
     HUIJUAN = 7
-
-
-_list_function = [  # 功能列表
-    "1.御魂副本",
-    "2.永生之海副本",
-    "3.业原火副本",
-    "4.御灵副本",
-    "5.个人突破",
-    "6.寮突破",
-    "7.道馆突破",
-    "8.普通召唤",
-    "9.百鬼夜行",
-    "10.限时活动",
-    "11.日轮副本",
-    "12.单人探索",
-    "13.契灵之境",
-    "14.觉醒副本",
-    "15.六道之门速刷",
-    "16.斗技自动上阵",
-    "17.英杰试炼",
-    "18.绘卷刷分",
-]
+    MIWEN = 8
 
 
 class HomeWidget(QWidget):
@@ -131,10 +113,7 @@ class HomeWidget(QWidget):
             self.func_label = BodyLabel("选择功能")
             self.func_label.setFixedWidth(60)
 
-            self.func_combobox = ComboBox()
-            for i, func in enumerate(GameFunction, 1):
-                self.func_combobox.addItem(f"{i}.{func.value}", userData=func)
-            self.func_combobox.setCurrentIndex(-1)
+            self.func_combobox = ComboBox()  # 下拉框
 
             self.number_label = BodyLabel("选择次数")
             self.number_label.setFixedWidth(60)
@@ -142,6 +121,17 @@ class HomeWidget(QWidget):
             self.number_spinbox = SpinBox()
             self.number_spinbox.setRange(0, 100)
             self.number_spinbox.setValue(0)
+
+            self.force_detect_window_button = PushButton("检测前置游戏窗口")
+            self.force_detect_window_button.setToolTip("优先检测最上层的游戏窗口")
+            self.force_detect_window_button.setToolTipDuration(5000)
+            self.force_detect_window_button.installEventFilter(
+                ToolTipFilter(
+                    self.force_detect_window_button,
+                    showDelay=300,
+                    position=ToolTipPosition.TOP,
+                )
+            )
 
             self.hBoxLayout1 = QHBoxLayout()
             self.hBoxLayout1.addWidget(self.func_label)
@@ -151,12 +141,31 @@ class HomeWidget(QWidget):
             self.hBoxLayout2.addWidget(self.number_label)
             self.hBoxLayout2.addWidget(self.number_spinbox)
 
+            self.hBoxLayout3 = QHBoxLayout()
+            self.hBoxLayout3.addWidget(self.force_detect_window_button)
+
             self.vBoxLayout = QVBoxLayout()
-            self.vBoxLayout.setSpacing(20)
+            self.vBoxLayout.setSpacing(15)
             self.vBoxLayout.addLayout(self.hBoxLayout1)
             self.vBoxLayout.addLayout(self.hBoxLayout2)
+            self.vBoxLayout.addLayout(self.hBoxLayout3)
 
+            self.viewLayout.setContentsMargins(24, 10, 24, 24)
             self.viewLayout.addLayout(self.vBoxLayout)
+
+            self.rebuild_combobox()
+
+        def rebuild_combobox(self):
+            """根据当前配置重建下拉框"""
+            self.func_combobox.blockSignals(True)  # 防止信号触发
+            self.func_combobox.clear()
+            func_map = {f.name: f for f in GameFunction}
+            order = config.user.function_order or [func.name for func in GameFunction]
+            for i, name in enumerate(order, 1):
+                func = func_map[name]
+                self.func_combobox.addItem(f"{i}.{func.value}", userData=func)
+            self.func_combobox.setCurrentIndex(-1)
+            self.func_combobox.blockSignals(False)
 
         def set_number_spinbox_value(self, current: int = 1, min: int = 0, max: int = 99):
             self.number_spinbox.setValue(current)
@@ -405,6 +414,27 @@ class HomeWidget(QWidget):
 
                 self.viewLayout.addLayout(self.vBoxLayout)
 
+        class AdvancedMiWenCard(HeaderCardWidget):
+            """高级设置-每周秘闻"""
+
+            id = StackedWidgetIndex.MIWEN.value
+
+            def __init__(self, parent=None):
+                super().__init__(parent)
+                self.setTitle("高级设置")
+                self.setBorderRadius(8)
+                self.headerView.setFixedHeight(GroupHeaderCardWidgetHeaderViewHeight)
+
+                self.combobox = ComboBox()
+                self.combobox.addItems([item.value for item in MiWenMode])
+
+                self.vBoxLayout = QVBoxLayout()
+                self.vBoxLayout.setSpacing(10)
+                self.vBoxLayout.addWidget(self.combobox)
+                self.vBoxLayout.addStretch()
+
+                self.viewLayout.addLayout(self.vBoxLayout)
+
         class AdvancedTanSuoCard(HeaderCardWidget):
             """高级设置-单人探索"""
 
@@ -534,6 +564,7 @@ class HomeWidget(QWidget):
             self.yingjieshilian_card = self.AdvancedYingJieShiLianCard()
             self.tansuo_card = self.AdvancedTanSuoCard()
             self.huijuan_card = self.AdvancedHuiJuanCard()
+            self.miwen_card = self.AdvancedMiWenCard()
 
             self.addWidget(QWidget())
 
@@ -545,6 +576,7 @@ class HomeWidget(QWidget):
                 self.yingjieshilian_card,
                 self.tansuo_card,
                 self.huijuan_card,
+                self.miwen_card,
             ]
 
             for card in sorted(card_instances, key=lambda x: type(x).id):
@@ -625,3 +657,18 @@ class HomeWidget(QWidget):
         self.hBoxLayout.addWidget(self.leftWidget, 4)
         self.hBoxLayout.addWidget(self.rightWidget, 6)
         self.hBoxLayout.setSpacing(20)
+
+    def refresh_function_list(self):
+        """应用功能排序后重置首页状态"""
+        # 刷新功能选择
+        self.basic_group.rebuild_combobox()
+
+        # 重置高级设置
+        self.advanced_stack.setCurrentIndex(0)
+
+        # 禁用状态按钮
+        self.button_status.setEnabled(False)
+        self.button_status.stop()
+
+        # 次数清零
+        self.basic_group.number_spinbox.setValue(0)

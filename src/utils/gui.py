@@ -1,4 +1,3 @@
-import shutil
 from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
@@ -11,14 +10,14 @@ from PySide6.QtGui import QPixmap, QTextCursor
 from qfluentwidgets import Dialog, MessageBox
 
 from ..package import *  # noqa: F403
-from ..package.types import GameFunction
+from ..package.types import GameFunction, MiWenMode
 from ..ui import icon_rc  # noqa: F401
 from ..ui.fluent import Window as FluentWindow
 from ..ui.home_widget import StackedWidgetIndex
 from ..ui.update_record_widget import UpdateRecordWindow
 from ..ui.upgrade_new_version_widget import UpgradeNewVersionWidget
-from .application import APP_NAME, APP_PATH, CACHE_DIR_PATH, VERSION
-from .config import _game_language_list, _interaction_mode_list, config, default_config
+from .application import APP_NAME, APP_PATH, VERSION
+from .config import _game_language_list, _interaction_mode_list, config
 from .decorator import log_function_call, run_in_thread
 from .event import event_thread
 from .function import is_Chinese_Path
@@ -80,9 +79,7 @@ class MainWindow(FluentWindow):
         card.interaction_mode_card.backend_screenshot_combobox.setCurrentText(
             setting.interaction_mode.backend.screenshot_method
         )
-        card.remember_last_choice_card.switch.setChecked(
-            setting.remember_last_choice != default_config.remember_last_choice
-        )
+        card.remember_last_choice_card.switch.setChecked(setting.remember_last_choice)
         card.shortcut_start_stop_card.combobox.setCurrentText(setting.shortcut_start_stop)
         card.win_toast_card.switch.setChecked(setting.win_toast)
         card.group_update.mode_switch.setChecked(setting.auto_update)
@@ -103,6 +100,7 @@ class MainWindow(FluentWindow):
     def _init_events(self):
         """初始化事件"""
         self.homeInterface.basic_group.func_combobox.currentIndexChanged.connect(self.game_function_description)
+        self.homeInterface.basic_group.force_detect_window_button.clicked.connect(self.force_detect_window_handle)
         self.homeInterface.button_status.clicked.connect(self.app_running)
 
         self.windowManagerInterface.preview_button.clicked.connect(self.preview_window)
@@ -164,6 +162,7 @@ class MainWindow(FluentWindow):
         window_manager.set_gui_button_callback(self._window_button_enabled_handle)
         window_manager.set_gui_window_manager_list_callback(self.refresh_window_list)
         window_manager.screen_init()
+        self._update_screen_resolution_handle()
 
         global_task.add(window_manager.update_window_task)
         global_task.add(XuanShangFengYin().check_task)
@@ -271,9 +270,13 @@ class MainWindow(FluentWindow):
         self.homeInterface.basic_group.number_spinbox.setEnabled(True)
 
         # 记忆上次所选功能
-        last_choice = config.user.remember_last_choice
-        if last_choice > 0:
-            self.homeInterface.basic_group.func_combobox.setCurrentIndex(last_choice - 1)
+        if config.user.remember_last_choice and config.user.last_function:
+            combo = self.homeInterface.basic_group.func_combobox
+            for i in range(combo.count()):
+                item_data = combo.itemData(i)
+                if item_data is not None and item_data.name == config.user.last_function:
+                    combo.setCurrentIndex(i)
+                    break
 
     @log_function_call
     def is_resource_directory_complete(self) -> bool:
@@ -302,7 +305,7 @@ class MainWindow(FluentWindow):
         logger.info("资源完整")
         return True
 
-    def check_game_handle(self):
+    def force_detect_window_handle(self):
         return window_manager.force_update()
 
     def game_function_description(self):
@@ -314,12 +317,9 @@ class MainWindow(FluentWindow):
         basic_group = self.homeInterface.basic_group
         advanced_stack = self.homeInterface.advanced_stack
 
-        print(basic_group.func_combobox.currentData())
         self.game_function_choice = basic_group.func_combobox.currentData()
-
-        # self.game_function_choice = GameFunction(basic_group.func_combobox.currentIndex() + 1)
-        if config.user.remember_last_choice != -1:
-            config.update("remember_last_choice", self.game_function_choice.value)
+        if config.user.remember_last_choice:
+            config.update("last_function", self.game_function_choice.name)
         self.homeInterface.button_status.setEnabled(True)
         basic_group.number_spinbox.setEnabled(True)
         basic_group.set_number_spinbox_value(1, 1, 999)
@@ -374,7 +374,6 @@ class MainWindow(FluentWindow):
             case GameFunction.DAOGUANTUPO:
                 DaoGuanTuPo.description()
                 set_stack(StackedWidgetIndex.DAOGUANTUPO)
-                basic_group.number_spinbox.setEnabled(False)
 
             case GameFunction.ZHAOHUAN:
                 ZhaoHuan.description()
@@ -429,6 +428,11 @@ class MainWindow(FluentWindow):
                 card.mode_level.setChecked(True)
                 card.fail_checkbox.setChecked(True)
                 card.mode_refresh.setChecked(False)
+
+            case GameFunction.MIWEN:
+                set_stack(StackedWidgetIndex.MIWEN)
+                basic_group.set_number_spinbox_value(10, 1, 10)
+                MiWen.description()
 
     def _app_start(self):
         # 没有选功能前禁止通过快捷键启动程序
@@ -492,7 +496,7 @@ class MainWindow(FluentWindow):
 
             case GameFunction.DAOGUANTUPO:
                 flag_guanzhan = advanced_stack.daoguantupo_card.checkbox.isChecked()
-                DaoGuanTuPo(flag_guanzhan=flag_guanzhan).task_start()
+                DaoGuanTuPo(n=selected_number, flag_guanzhan=flag_guanzhan).task_start()
 
             case GameFunction.ZHAOHUAN:
                 ZhaoHuan(n=selected_number).task_start()
@@ -573,6 +577,11 @@ class MainWindow(FluentWindow):
                     has_temp_pop=has_temp_pop,
                 ).task_start()
 
+            case GameFunction.MIWEN:
+                card = advanced_stack.miwen_card
+                mode = MiWenMode(card.combobox.currentText())
+                MiWen(n=selected_number, mode=mode).task_start()
+
     def _app_stop(self):
         event_thread.set()
         logger.ui("停止中，请稍候")
@@ -607,7 +616,6 @@ class MainWindow(FluentWindow):
         Args:
             game_window_list (list[GameWindow]): 窗口句柄列表
         """
-        self.windowManagerInterface.update_label(len(game_window_list))
         combobox = self.windowManagerInterface.comboBox
         combobox.clear()
         if game_window_list:
@@ -622,6 +630,12 @@ class MainWindow(FluentWindow):
         self.windowManagerInterface.comboBox.setEnabled(len(game_window_list) > 0)
         self.windowManagerInterface.preview_button.setEnabled(len(game_window_list) > 0)
         self.windowManagerInterface.apply_button.setEnabled(len(game_window_list) > 0)
+
+    def _update_screen_resolution_handle(self):
+        """更新屏幕分辨率显示"""
+        resolution = window_manager.current_window_resolution
+        if resolution:
+            self.windowManagerInterface.update_screen_resolution(resolution.screen_size[0], resolution.screen_size[1])
 
     def preview_window(self):
         """预览选中的窗口"""
@@ -694,12 +708,6 @@ class MainWindow(FluentWindow):
             self.update_record_widget.close()
         if hasattr(self, "upgrade_new_version_widget"):
             self.upgrade_new_version_widget.close()
-
-        # 删除缓存文件夹
-        with suppress(Exception):
-            if CACHE_DIR_PATH.exists():
-                shutil.rmtree(CACHE_DIR_PATH)
-                logger.info(f"已删除缓存文件夹: {CACHE_DIR_PATH}")
 
         with suppress(Exception):
             logger.info("[EXIT]")

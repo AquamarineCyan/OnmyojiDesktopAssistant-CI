@@ -22,6 +22,7 @@ class GameFunction(Enum):
     DOUJI = "斗技自动上阵"
     YINGJIESHILIAN = "英杰试炼"
     HUIJUAN = "绘卷刷分"
+    MIWEN = "每周秘闻"
 
 
 class QiLing(StrEnum):
@@ -42,3 +43,10 @@ class Yingjie(StrEnum):
 
     YUAN_LAI_GUANG = "源赖光"
     TENG_YUAN_DAO_CHANG = "藤原道长"
+
+
+class MiWenMode(StrEnum):
+    """秘闻模式"""
+
+    JING_SU = "竞速"
+    BAI_ZHAN = "百战"

@@ -70,7 +70,7 @@ class DefaultConfig(BaseModel):
     """下载线路"""
     xuanshangfengyin: list = _xuanshangfengyin_list
     """悬赏封印"""
-    remember_last_choice: int = -1
+    remember_last_choice: bool = False
     """记住上次选择"""
     shortcut_start_stop: list = _shortcut_start_stop_list
     """快捷键-开始/停止"""
@@ -82,6 +82,8 @@ class DefaultConfig(BaseModel):
         "backend": _backend_sub_config,
     }
     """交互模式"""
+    function_order: list = []
+    """功能排序默认值"""
 
 
 default_config = DefaultConfig()
@@ -98,14 +100,18 @@ class UserConfig(BaseModel):
     """下载线路"""
     xuanshangfengyin: str = _xuanshangfengyin_list[0]
     """悬赏封印"""
-    remember_last_choice: int = -1
-    """记忆上次所选功能 -1:关闭 0:开启 其他:各项功能"""
+    remember_last_choice: bool = False
+    """记忆上次所选功能"""
+    last_function: str = ""
+    """上次选择的功能名（GameFunction.name），与remember_last_choice配合使用"""
     shortcut_start_stop: str = _shortcut_start_stop_list[0]
     """快捷键-开始/停止"""
     win_toast: bool = True
     """系统通知"""
     interaction_mode: InteractionModeConfig = InteractionModeConfig()
     """交互模式"""
+    function_order: list[str] = []
+    """功能排序，可通过GameFunctionSelectorWidget修改"""
 
 
 class Config:
@@ -124,6 +130,11 @@ class Config:
         if self.config_path.is_file():
             logger.info("Find config file.")
             data = self._check_outdated(self._read())
+            # 注意：isinstance(True, int) 为 True，需先排除 bool 类型
+            # TODO v2.2：删除兼容代码
+            val = data.get("remember_last_choice")
+            if isinstance(val, int) and not isinstance(val, bool):
+                data["remember_last_choice"] = val == 0
             self.user = UserConfig(**data)
             if self.data_error:
                 logger.warning("Data error, reset config.")
@@ -204,6 +215,9 @@ class Config:
 
         for key, default_value in default_config.model_dump().items():
             if key not in data:
+                continue
+            # function_order 是列表类型，不走候选值校验逻辑
+            if key == "function_order":
                 continue
             fixed_value, changed = validate(data[key], default_value)
             if changed:
