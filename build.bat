@@ -7,7 +7,7 @@ if not exist main.spec (
 )
 
 echo Building with main.spec...
-poetry run pyinstaller main.spec --clean --noconfirm --distpath .
+uv run pyinstaller main.spec --clean --noconfirm --distpath .
 
 
 if not exist output (
