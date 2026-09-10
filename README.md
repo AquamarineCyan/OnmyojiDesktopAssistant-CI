@@ -1,8 +1,11 @@
+<div align="center">
+<img alt="OnmyojiDesktopAssistant" src="./docs/logo.jpg" width="200" height="200" />
 # OnmyojiDesktopAssistant
 
 ![Python](https://img.shields.io/badge/python-3.11+-blue)
 
 [![GitHub release (with filter)](https://img.shields.io/github/v/release/AquamarineCyan/OnmyojiDesktopAssistant)](https://github.com/AquamarineCyan/OnmyojiDesktopAssistant/releases/latest)
+</div>
 
 ## 简介
 
@@ -57,6 +60,8 @@
     - 经验本/技能本
 18. 绘卷刷分
     - 采用单人探索+个人突破的组合方式
+19. 每周秘闻
+    - 自动准备
 ---
 
 - [x] 全局悬赏封印
@@ -88,32 +93,70 @@
 
 ### 3. 源码编译运行（不推荐）
 
-<details><summary> 需要自行安装Python环境 </summary>
+<details><summary> 需要自行安装 Python 环境 </summary>
 
 1. 下载源码  
+
     ```bash
     git clone https://github.com/AquamarineCyan/OnmyojiDesktopAssistant.git
     ```
 
-2. 安装依赖 
-    - venv 方式  
-    `pip install -r requestments.txt`
-    - poetry 方式  
-    `poetry install`
+2. 安装依赖
 
-3. 添加文字识别依赖库
+    安装 uv：[uv 官方文档](https://docs.astral.sh/uv/getting-started/installation/)
 
-    从 [releases](https://github.com/AquamarineCyan/OnmyojiDesktopAssistant/releases/latest) 下载 `OnmyojiDesktopAssistant-2.x.x.zip`， 解压后找到`ocr`文件夹放在项目根目录下
+    ```bash
+    # 使用 uv 安装依赖
+    uv sync
 
-4. 运行/调试
+    # 使用 pip 安装依赖
+    pip install -r requirements.txt
+    ```
 
-    - 使用管理员程序启动你的IDE，如 `PyCharm`、`VSCode` 。
+    可选：GPU 安装（手动，非默认）
+
+    如果需要使用 GPU 加速，请在安装前先卸载 CPU 版 Paddle（如果已安装）：
+
+    ```bash
+    # 使用 uv 卸载 CPU 版本
+    uv pip uninstall -y paddlepaddle
+
+    # 使用 pip 卸载 CPU 版本
+    pip uninstall -y paddlepaddle
+    ```
+
+    根据你的 CUDA 版本安装 paddlepaddle-gpu（以 cu129 为例），更多信息请参考 PaddleOCR 官方文档：https://www.paddleocr.ai/latest/quick_start.html#1
+
+    ```bash
+    # 使用 uv 安装 gpu 依赖
+    uv pip install paddlepaddle-gpu==3.3.1 -i https://www.paddlepaddle.org.cn/packages/stable/cu129/
+
+    # 使用 pip 安装 gpu 依赖
+    pip install paddlepaddle-gpu==3.3.1 -i https://www.paddlepaddle.org.cn/packages/stable/cu129/
+    ```
+
+    建议在独立虚拟环境中安装 GPU 版本，避免与 CPU 版本冲突。
+
+3. 运行/调试
+
+    - 使用 **管理员权限** 启动IDE，如 `VSCode` 或者 `PyCharm` 。
+
     - 如果使用 `VSCode` 调试，已经提供了对应的调试文件，选择 `Project` 调试模式启动。
-    - 其他IDE：终端运行 `python main.py` 。
 
-5. 打包
+    - 其他方式启动：
+      ```bash
+      # 使用 uv 运行
+      uv run python main.py
 
-    打包配置保存在 `main.spec` ，使用 `pyinstaller main.spec` 命令，会在根目录下生成 `output` 文件夹。
+      # 使用 pip 运行
+      python main.py
+      ```
+
+4. 打包
+
+    打包配置保存在 `main.spec` ，打包时会根据构建环境是否已安装 `paddlepaddle-gpu` 自动收集对应的 GPU 动态库。
+
+    使用 `build.bat` 打包。打包完成会在当前目录下生成 `output` 文件夹。
 
 </details>
 
@@ -128,8 +171,9 @@
       |- update_info.json # 更新记录
    |- lib # 运行库
    |- log # 日志
-   |- ocr # 文字识别库
+   |- models # 文字识别模型库
    |- resource # 素材文件
+   |- resource_ja # 日服素材文件（可选）
    |- OnmyojiDesktopAssistant.exe # 主程序
 ```
 
@@ -163,11 +207,12 @@
 
 ## 日服
 
-1. 下载下方 `Assets` 的 `resource_ja.zip`
-2. 解压后，复制到软件根目录，与自带的 `resource` 文件夹同级
-3. 软件设置 - `游戏服务器`  改为 `日服` ，重启
-4. 无报错信息即可使用
-5. 目前仅适配 `单人御魂副本` ，资源及测试由 [@huahua1125](https://github.com/huahua1125) 提供
+**素材迭代速度赶不上游戏UI迭代速度，欢迎提供最新版本的素材。**
+
+1. 日服资源文件随压缩包一同提供，由 `GitHub Actions` 自动合并。
+2. 软件设置 - `游戏服务器`  改为 `日服` ，重启。
+3. 无报错信息即可使用。
+4. 目前仅适配 `单人御魂副本` ，资源及测试由 [@huahua1125](https://github.com/huahua1125) 提供。
 
 ## 注意事项
 
@@ -192,7 +237,21 @@
 
 ## 感谢
 
-[raoyutian/PaddleOCRSharp](https://gitee.com/raoyutian/PaddleOCRSharp) 基于paddle的本地离线OCR v3识别库
+[PaddlePaddle/PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) 文字识别库
+
+[zhiyiYo/PyQt-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets/tree/PySide6) 基于 PySide6 的 Fluent Design 风格组件库
+
+[打包PaddleOCR项目](https://www.paddleocr.ai/latest/version3.x/inference_deployment/others/packaging.html) Paddle官方打包demo
+
+## 声明
+
+- 本软件采用 **GNU General Public License v3.0** 许可证。详见 [LICENSE](LICENSE) 文件。
+
+- 本软件开源、免费，仅供学习交流使用。若您遇到商家使用本软件进行代练并收费，可能是设备与时间等费用，产生的问题及后果与本软件无关。
+
+- 收费商家：闲鱼用户 [小段爱玩阴阳师](https://www.goofish.com/personal?userId=3933099288)
+
+    ![小段爱玩阴阳师](docs/id小段爱玩阴阳师.jpg)
 
 ## 更新记录
 
