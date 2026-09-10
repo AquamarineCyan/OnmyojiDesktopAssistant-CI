@@ -1,10 +1,13 @@
 <div align="center">
 <img alt="OnmyojiDesktopAssistant" src="./docs/logo.jpg" width="200" height="200" />
+
 # OnmyojiDesktopAssistant
 
-![Python](https://img.shields.io/badge/python-3.11+-blue)
+<div>
+    <img alt="Python" src="https://img.shields.io/badge/python-3.11+-blue">
+    <a href="https://github.com/AquamarineCyan/OnmyojiDesktopAssistant/releases/latest"><img alt="GitHub release" src="https://img.shields.io/github/v/release/AquamarineCyan/OnmyojiDesktopAssistant"></a>
+</div>
 
-[![GitHub release (with filter)](https://img.shields.io/github/v/release/AquamarineCyan/OnmyojiDesktopAssistant)](https://github.com/AquamarineCyan/OnmyojiDesktopAssistant/releases/latest)
 </div>
 
 ## 简介
